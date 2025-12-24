@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>几何判定实验室：菱形</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --glass-white: rgba(255, 255, 255, 0.9);
+            --primary: #4e54c8;
+            --primary-light: #8f94fb;
+            --success: #00b894;
+            --warning: #fdcb6e;
+            --error: #ff7675;
+            --text-main: #2d3436;
+            --text-sub: #636e72;
+            --grid-color: rgba(78, 84, 200, 0.05);
+        }
+
+        /* --- 核心布局：禁止页面滚动 --- */
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(143, 148, 251, 0.2) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(78, 84, 200, 0.1) 0px, transparent 50%);
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-main);
+        }
+
+        .main-wrapper {
+            width: 100%;
+            height: 100vh;
+            max-width: 1400px;
+            padding: 20px 40px;
+            display: flex;
+            gap: 30px;
+        }
+
+        /* --- 左侧：侧边栏 --- */
+        .sidebar-column {
+            width: 360px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto; 
+            padding-right: 10px;
+            height: 100%;
+        }
+
+        .sidebar-column::-webkit-scrollbar { width: 6px; }
+        .sidebar-column::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); border-radius: 4px; }
+        .sidebar-column::-webkit-scrollbar-track { background: transparent; }
+
+        .logo-area { flex-shrink: 0; padding-bottom: 10px; }
+        
+        h1 {
+            font-size: 1.6rem; margin: 0;
+            background: linear-gradient(45deg, var(--primary), var(--primary-light));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            font-weight: 800;
+        }
+
+        p.subtitle { margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem; }
+
+        .card {
+            background: white; padding: 16px 20px; border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02), 0 4px 8px rgba(0,0,0,0.02);
+            cursor: grab; transition: all 0.2s ease; position: relative;
+            border: 1px solid rgba(255,255,255,0.8); display: flex; align-items: center;
+            gap: 12px; flex-shrink: 0;
+        }
+
+        .card:hover { transform: translateY(-3px); border-color: var(--primary-light); box-shadow: 0 8px 16px rgba(78, 84, 200, 0.1); }
+        .card:active { cursor: grabbing; transform: scale(0.98); }
+
+        .math-text { font-family: 'Noto Serif SC', serif; font-size: 1.1rem; font-style: italic; color: #2c3e50; font-weight: 600; }
+
+        .card-tag {
+            position: absolute; right: 0; top: 0; font-size: 0.65rem; padding: 2px 6px;
+            border-bottom-left-radius: 6px; color: white; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+        }
+        .card:hover .card-tag { opacity: 1; }
+        .card[data-role="step1"] .card-tag { background: #74b9ff; content: '判定平四'; }
+        .card[data-role="step2"] .card-tag { background: #a29bfe; content: '判定菱形'; }
+        .card[data-role="direct"] .card-tag { background: #00b894; content: '定义法'; }
+        .card[data-role="wrong"] .card-tag { background: #ff7675; content: '干扰项'; }
+
+        /* --- 右侧：画布区 --- */
+        .canvas-column {
+            flex: 1; height: 100%;
+            background: var(--glass-white); backdrop-filter: blur(20px);
+            border-radius: 24px; border: 1px solid rgba(255,255,255,0.6);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); padding: 20px;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+
+        .stepper {
+            flex-shrink: 0; display: flex; justify-content: space-between;
+            margin-bottom: 15px; position: relative; padding: 0 20px;
+        }
+        .stepper::before {
+            content: ''; position: absolute; top: 50%; left: 40px; right: 40px; height: 2px;
+            background: #e0e0e0; z-index: 0; transform: translateY(-50%);
+        }
+
+        .step-item {
+            position: relative; z-index: 1; background: white;
+            padding: 6px 14px; border-radius: 20px; border: 2px solid #e0e0e0;
+            color: #b2bec3; font-size: 0.8rem; font-weight: 700; transition: all 0.4s ease;
+        }
+        .step-item.active { border-color: var(--primary); color: var(--primary); }
+        .step-item.completed { background: var(--success); border-color: var(--success); color: white; }
+
+        .drop-zone {
+            flex: 1; background-color: #fff;
+            background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 20px 20px; border-radius: 16px; border: 2px dashed #dcdde1;
+            position: relative; display: flex; align-items: center; justify-content: center;
+            overflow: hidden; min-height: 0;
+        }
+
+        .instruction-capsule {
+            position: absolute; top: 15px; background: white; padding: 8px 20px;
+            border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); font-size: 0.9rem;
+            color: var(--text-sub); z-index: 10; display: flex; align-items: center; gap: 8px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+
+        svg { width: 100%; height: 100%; overflow: visible; }
+
+        .geo-shape {
+            fill: rgba(255,255,255,0.5); stroke: var(--text-main); stroke-width: 3;
+            stroke-linejoin: round; stroke-linecap: round;
+            transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .shape-quad { stroke: #b2bec3; stroke-dasharray: 8 6; }
+        .shape-para { stroke: var(--primary); fill: rgba(78, 84, 200, 0.05); stroke-dasharray: none;}
+        .shape-rhombus { stroke: var(--success); fill: rgba(0, 184, 148, 0.1); stroke-width: 4; }
+
+        text.label { font-family: 'Noto Serif SC', serif; font-style: italic; font-size: 18px; fill: var(--text-main); font-weight: bold; text-anchor: middle; dominant-baseline: middle; transition: all 0.8s; pointer-events: none; }
+        text.label-o { font-size: 14px; fill: var(--text-sub); }
+
+        /* 对角线样式 */
+        .diagonal { stroke: var(--primary-light); stroke-width: 2; stroke-dasharray: 4; opacity: 0; transition: opacity 0.5s; }
+        /* 对角线交点 */
+        .center-dot { fill: var(--text-sub); opacity: 0; transition: opacity 0.5s; }
+
+        .reset-btn {
+            position: absolute; bottom: 20px; background: var(--text-main); color: white;
+            border: none; padding: 10px 24px; border-radius: 10px; font-weight: 600; cursor: pointer;
+            opacity: 0; transform: translateY(20px); pointer-events: none;
+            transition: all 0.4s; box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+        }
+        .reset-btn.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .reset-btn:hover { transform: translateY(-3px); background: black; }
+
+        .card::before {
+            content: ''; width: 4px; height: 16px;
+            background-image: radial-gradient(#dfe6e9 40%, transparent 45%);
+            background-size: 4px 4px; background-repeat: repeat-y; flex-shrink: 0;
+        }
+
+        @media (max-width: 900px) {
+            .main-wrapper { padding: 10px; flex-direction: column; }
+            .sidebar-column { width: 100%; height: 30%; flex-direction: row; overflow-x: auto; overflow-y: hidden; }
+            .card { min-width: 200px; }
+            .canvas-column { height: 70%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-wrapper">
+    <div class="sidebar-column">
+        <div class="logo-area">
+            <h1>几何探索 Pro</h1>
+            <p class="subtitle">拖动卡片完成判定</p>
+        </div>
+
+        <div class="card" draggable="true" data-role="step1" data-msg="两组对边分别平行的四边形是平行四边形。">
+            <span class="card-tag">判定平四</span>
+            <div class="math-text">AB ∥ CD, AD ∥ BC</div>
+        </div>
+
+        <div class="card" draggable="true" data-role="step1" data-msg="两组对边分别相等的四边形是平行四边形。">
+            <span class="card-tag">判定平四</span>
+            <div class="math-text">AB = CD, AD = BC</div>
+        </div>
+
+        <div class="card" draggable="true" data-role="step2" data-msg="对角线互相垂直的平行四边形是菱形。">
+            <span class="card-tag">判定菱形</span>
+            <div class="math-text">AC ⊥ BD</div>
+        </div>
+
+        <div class="card" draggable="true" data-role="wrong" data-msg="错误：这是矩形的判定条件。">
+            <span class="card-tag">干扰项</span>
+            <div class="math-text">AC = BD</div>
+        </div>
+
+        <div class="card" draggable="true" data-role="step2" data-msg="有一组邻边相等的平行四边形是菱形。">
+            <span class="card-tag">判定菱形</span>
+            <div class="math-text">AB = AD</div>
+        </div>
+
+        <div class="card" draggable="true" data-role="direct" data-msg="四条边都相等的四边形是菱形。">
+            <span class="card-tag">定义法</span>
+            <div class="math-text">AB=BC=CD=DA</div>
+        </div>
+
+        <div class="card" draggable="true" data-role="step1" data-msg="对角线互相平分的四边形是平行四边形。">
+            <span class="card-tag">判定平四</span>
+            <div class="math-text">OA=OC, OB=OD</div>
+        </div>
+        
+        <div class="card" draggable="true" data-role="wrong" data-msg="错误：仅有一组对边平行是梯形。">
+            <span class="card-tag">干扰项</span>
+            <div class="math-text">AB ∥ CD</div>
+        </div>
+    </div>
+
+    <div class="canvas-column">
+        <div class="stepper">
+            <div class="step-item active" id="badge-quad">1. 任意四边形</div>
+            <div class="step-item" id="badge-para">2. 平行四边形</div>
+            <div class="step-item" id="badge-rhom">3. 菱形</div>
+        </div>
+
+        <div class="drop-zone" id="dropZone">
+            
+            <div class="instruction-capsule" id="instructionCapsule">
+                <div class="status-dot" style="background: #b2bec3;"></div>
+                <span id="instructionText">请拖入条件证明它是平行四边形</span>
+            </div>
+
+            <svg viewBox="0 0 500 500" preserveAspectRatio="xMidYMid meet">
+                <line id="d1" class="diagonal" x1="0" y1="0" x2="0" y2="0"></line>
+                <line id="d2" class="diagonal" x1="0" y1="0" x2="0" y2="0"></line>
+
+                <polygon id="poly" class="geo-shape shape-quad" points=""></polygon>
+                
+                <text id="tA" class="label">A</text>
+                <text id="tB" class="label">B</text>
+                <text id="tC" class="label">C</text>
+                <text id="tD" class="label">D</text>
+                
+                <circle id="dotO" class="center-dot" r="4" cx="0" cy="0"></circle>
+                <text id="tO" class="label label-o" style="opacity: 0">O</text>
+            </svg>
+
+            <button class="reset-btn" onclick="resetState()">↻ 重新开始实验</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const STATE = { QUAD: 0, PARA: 1, RHOMBUS: 2 };
+    let currentState = STATE.QUAD;
+
+    // DOM Elements
+    const dropZone = document.getElementById('dropZone');
+    const instructionText = document.getElementById('instructionText');
+    const statusDot = document.querySelector('.status-dot');
+    const resetBtn = document.querySelector('.reset-btn');
+    const poly = document.getElementById('poly');
+    
+    // SVG Labels
+    const els = {
+        A: document.getElementById('tA'), B: document.getElementById('tB'),
+        C: document.getElementById('tC'), D: document.getElementById('tD'),
+        O: document.getElementById('tO'), dotO: document.getElementById('dotO'),
+        d1: document.getElementById('d1'), d2: document.getElementById('d2')
+    };
+
+    // --- 关键修改：分离顶点(Vertices)与标签(Labels) ---
+    // Vertices: 用于绘制图形和对角线（精准几何位置）
+    // Labels: 用于显示文字（带偏移，防止遮挡）
+    const shapes = {
+        quad: { 
+            vertices: { A:[140,380], B:[360,360], C:[400,120], D:[160,100] },
+            labels: { A:[120,400], B:[380,380], C:[425,120], D:[140,75] } 
+        },
+        para: { 
+            vertices: { A:[100,340], B:[340,340], C:[400,100], D:[160,100] },
+            labels: { A:[80,365], B:[360,365], C:[420,100], D:[150,75] } 
+        },
+        rhom: { 
+            vertices: { A:[250,420], B:[380,250], C:[250,80], D:[120,250] },
+            labels: { A:[250,445], B:[405,250], C:[250,55], D:[95,250] } 
+        }
+    };
+
+    // 初始化
+    updateShape(shapes.quad, false);
+
+    // 拖拽逻辑
+    document.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('role', card.dataset.role);
+            e.dataTransfer.setData('msg', card.dataset.msg);
+            card.style.opacity = '0.4';
+        });
+        card.addEventListener('dragend', () => card.style.opacity = '1');
+    });
+
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drag-over'); });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        handleLogic(e.dataTransfer.getData('role'), e.dataTransfer.getData('msg'));
+    });
+
+    function handleLogic(role, msg) {
+        if (role === 'wrong') return showFeedback(msg, 'error');
+
+        if (currentState === STATE.QUAD) {
+            if (role === 'step1') {
+                changeState(STATE.PARA, shapes.para, 'shape-para', '判定成功！现在是平行四边形，请继续证明它是菱形', 'warning');
+            } else if (role === 'direct') {
+                changeState(STATE.RHOMBUS, shapes.rhom, 'shape-rhombus', '太棒了！定义法判定正确', 'success', true);
+            } else if (role === 'step2') {
+                showFeedback('需先证明是平行四边形', 'error');
+            }
+        } else if (currentState === STATE.PARA) {
+            if (role === 'step2' || role === 'direct') {
+                changeState(STATE.RHOMBUS, shapes.rhom, 'shape-rhombus', '完美！条件充足，判定为菱形', 'success', true);
+            } else if (role === 'step1') {
+                showFeedback('已知是平行四边形，请寻找新条件', 'warning');
+            }
+        } else {
+             showFeedback('已经是菱形了', 'success');
+        }
+    }
+
+    function changeState(state, shapeData, cls, msg, type, showDiag = false) {
+        currentState = state;
+        updateShape(shapeData, showDiag);
+        updateStepper(state);
+        showFeedback(msg, type);
+        poly.setAttribute('class', `geo-shape ${cls}`);
+        if(state === STATE.RHOMBUS) resetBtn.classList.add('visible');
+    }
+
+    function updateShape(data, showDiag) {
+        const V = data.vertices;
+        const L = data.labels;
+
+        // 1. 使用 Vertices 绘制多边形
+        // 注意：polygon points 顺序需要对应 A->B->C->D 顺时针或逆时针
+        // 根据坐标，quad 的 points 之前是 D->A->B->C 乱序的，这里我们统一用 A->B->C->D
+        // Quad 之前: 120,380(D?) 340,360(C?) ... 
+        // 为了对角线 A-C 和 B-D 正确，我们需要理清顺序。
+        // 设定：A(左下/下), B(右下/右), C(右上/上), D(左上/左)
+        // 修正后的形状顺序： A -> B -> C -> D
+        
+        const pointsStr = `${V.A[0]},${V.A[1]} ${V.B[0]},${V.B[1]} ${V.C[0]},${V.C[1]} ${V.D[0]},${V.D[1]}`;
+        poly.setAttribute('points', pointsStr);
+
+        // 2. 使用 Labels 定位文字
+        els.A.setAttribute('x', L.A[0]); els.A.setAttribute('y', L.A[1]);
+        els.B.setAttribute('x', L.B[0]); els.B.setAttribute('y', L.B[1]);
+        els.C.setAttribute('x', L.C[0]); els.C.setAttribute('y', L.C[1]);
+        els.D.setAttribute('x', L.D[0]); els.D.setAttribute('y', L.D[1]);
+
+        // 3. 计算中心点 O (使用 Vertices A和C的中点)
+        const midX = (V.A[0] + V.C[0]) / 2;
+        const midY = (V.A[1] + V.C[1]) / 2;
+        
+        els.dotO.setAttribute('cx', midX);
+        els.dotO.setAttribute('cy', midY);
+        
+        // O 文字标签稍微偏移
+        els.O.setAttribute('x', midX);
+        els.O.setAttribute('y', midY + 25);
+
+        // 4. 使用 Vertices 绘制对角线 (A-C, B-D)
+        const op = showDiag ? 1 : 0;
+        els.d1.style.opacity = op; 
+        els.d2.style.opacity = op; 
+        els.O.style.opacity = op;
+        els.dotO.style.opacity = op;
+
+        els.d1.setAttribute('x1', V.A[0]); els.d1.setAttribute('y1', V.A[1]);
+        els.d1.setAttribute('x2', V.C[0]); els.d1.setAttribute('y2', V.C[1]);
+        
+        els.d2.setAttribute('x1', V.B[0]); els.d2.setAttribute('y1', V.B[1]);
+        els.d2.setAttribute('x2', V.D[0]); els.d2.setAttribute('y2', V.D[1]);
+    }
+
+    function updateStepper(s) {
+        const steps = [document.getElementById('badge-quad'), document.getElementById('badge-para'), document.getElementById('badge-rhom')];
+        steps.forEach(b => b.classList.remove('completed', 'active'));
+        
+        if(s >= 0) steps[0].classList.add(s > 0 ? 'completed' : 'active');
+        if(s >= 1) steps[1].classList.add(s > 1 ? 'completed' : 'active');
+        if(s === 2) steps[2].classList.add('completed'); 
+    }
+
+    function showFeedback(txt, type) {
+        instructionText.textContent = txt;
+        const colors = { error:'#ff7675', success:'#00b894', warning:'#4e54c8', default:'#b2bec3' };
+        statusDot.style.background = colors[type] || colors.default;
+        
+        if(type === 'error') {
+            const cap = document.getElementById('instructionCapsule');
+            cap.style.transform = 'translateX(10px)';
+            setTimeout(() => cap.style.transform = 'translateX(0)', 100);
+        }
+    }
+
+    function resetState() {
+        currentState = STATE.QUAD;
+        updateShape(shapes.quad, false);
+        updateStepper(STATE.QUAD);
+        poly.setAttribute('class', 'geo-shape shape-quad');
+        showFeedback('请拖入条件证明它是平行四边形', 'default');
+        resetBtn.classList.remove('visible');
+    }
+</script>
+</body>
+</html>
